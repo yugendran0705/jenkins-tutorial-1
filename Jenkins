@@ -1,0 +1,105 @@
+pipeline {
+    agent any
+
+    environment {
+        TF_WORKSPACE   = "default"
+        AWS_REGION     = "us-east-1"
+    }
+
+    options {
+        timestamps()
+    }
+
+    triggers {
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Init') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-jenkins-tf',
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+                    sh '''
+                      terraform init -input=false
+                    '''
+                }
+            }
+        }
+
+        stage('Plan') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-jenkins-tf',
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+                    sh '''
+                      terraform plan \
+                        -input=false \
+                        -out=tfplan \
+                        -var="region=${AWS_REGION}"
+                    '''
+                }
+            }
+        }
+
+        stage('Approval') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                script {
+                    timeout(time: 15, unit: 'MINUTES') {
+                        input message: 'Approve Terraform APPLY to AWS?', ok: 'Apply'
+                    }
+                }
+            }
+        }
+
+        stage('Apply') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-jenkins-tf',
+                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
+                ]) {
+                    sh '''
+                      terraform apply -input=false tfplan
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'tfplan', allowEmptyArchive: true
+        }
+        success {
+            echo "Terraform pipeline completed successfully."
+        }
+        failure {
+            echo "Terraform pipeline failed."
+        }
+    }
+}
