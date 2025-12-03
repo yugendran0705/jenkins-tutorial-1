@@ -19,7 +19,7 @@ variable "region" {
 }
 
 resource "aws_s3_bucket" "tf_example" {
-  bucket = "jenkins-tf-example-bucket-123456" # must be globally unique
+  bucket = "yugen-jenkins-1" 
   tags = {
     Name        = "jenkins-tf-example"
     Environment = "dev"
