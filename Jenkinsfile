@@ -2,15 +2,11 @@ pipeline {
     agent any
 
     environment {
-        TF_WORKSPACE   = "default"
-        AWS_REGION     = "us-east-1"
-    }
-
-    options {
-        timestamps()
+        AWS_REGION = "us-east-1"
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -25,9 +21,7 @@ pipeline {
                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    sh '''
-                      terraform init -input=false
-                    '''
+                    sh 'terraform init'
                 }
             }
         }
@@ -40,12 +34,7 @@ pipeline {
                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    sh '''
-                      terraform plan \
-                        -input=false \
-                        -out=tfplan \
-                        -var="region=${AWS_REGION}"
-                    '''
+                    sh 'terraform plan -out=tfplan -var="region=${AWS_REGION}"'
                 }
             }
         }
@@ -53,14 +42,14 @@ pipeline {
         stage('Approval') {
             when {
                 anyOf {
-                    branch 'main'
-                    branch 'master'
+                    environment name: 'BRANCH_NAME', value: 'main'
+                    environment name: 'GIT_BRANCH', value: 'origin/main'
                 }
             }
             steps {
                 script {
                     timeout(time: 15, unit: 'MINUTES') {
-                        input message: 'Approve Terraform APPLY to AWS?', ok: 'Apply'
+                        input message: 'Apply the Terraform changes?', ok: 'Apply'
                     }
                 }
             }
@@ -69,8 +58,8 @@ pipeline {
         stage('Apply') {
             when {
                 anyOf {
-                    branch 'main'
-                    branch 'master'
+                    environment name: 'BRANCH_NAME', value: 'main'
+                    environment name: 'GIT_BRANCH', value: 'origin/main'
                 }
             }
             steps {
@@ -80,9 +69,7 @@ pipeline {
                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']
                 ]) {
-                    sh '''
-                      terraform apply -input=false tfplan
-                    '''
+                    sh 'terraform apply -input=false tfplan'
                 }
             }
         }
