@@ -39,22 +39,6 @@ pipeline {
             }
         }
 
-        stage('Approval') {
-            when {
-                anyOf {
-                    environment name: 'BRANCH_NAME', value: 'main'
-                    environment name: 'GIT_BRANCH', value: 'origin/main'
-                }
-            }
-            steps {
-                script {
-                    timeout(time: 15, unit: 'MINUTES') {
-                        input message: 'Apply the Terraform changes?', ok: 'Apply'
-                    }
-                }
-            }
-        }
-
         stage('Apply') {
             when {
                 anyOf {
